@@ -1,0 +1,169 @@
+//go:build kgwctl
+
+/*
+Copyright kgateway Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package printer
+
+import (
+	"fmt"
+	"io"
+	"strings"
+
+	"golang.org/x/exp/maps"
+	"k8s.io/apimachinery/pkg/util/duration"
+	"sigs.k8s.io/gwctl/pkg/topology"
+
+	"github.com/kgateway-dev/kgateway/v2/pkg/kgwctl/extension/directlyattachedpolicy"
+	"github.com/kgateway-dev/kgateway/v2/pkg/kgwctl/extension/refgrantvalidator"
+	extensionutils "github.com/kgateway-dev/kgateway/v2/pkg/kgwctl/extension/utils"
+	topologykgw "github.com/kgateway-dev/kgateway/v2/pkg/kgwctl/topology/kgateway"
+)
+
+func (p *TablePrinter) printDirectResponse(directResponseNode *topology.Node, w io.Writer) error {
+	if err := p.checkTypeChange("DirectResponse", w); err != nil {
+		return err
+	}
+
+	if p.table == nil {
+		var columnNames []string
+		if p.OutputFormat == OutputFormatWide {
+			columnNames = []string{"NAMESPACE", "NAME", "TYPE", "AGE", "REFERRED BY ROUTES", "POLICIES"}
+		} else {
+			columnNames = []string{"NAMESPACE", "NAME", "TYPE", "AGE"}
+		}
+		p.table = &Table{
+			ColumnNames:  columnNames,
+			UseSeparator: false,
+		}
+	}
+
+	backend := directResponseNode.Object
+
+	namespace := backend.GetNamespace()
+	name := backend.GetName()
+	backendType := backend.GetKind()
+
+	age := "<unknown>"
+	creationTimestamp := backend.GetCreationTimestamp()
+	if !creationTimestamp.IsZero() {
+		age = duration.HumanDuration(p.Clock.Since(creationTimestamp.Time))
+	}
+
+	row := []string{
+		namespace,
+		name,
+		backendType,
+		age,
+	}
+	if p.OutputFormat == OutputFormatWide {
+		httpRouteNodes := maps.Values(topologykgw.DirectResponseNode(directResponseNode).HTTPRoutes())
+		sortedHTTPRouteNodes := topology.SortedNodes(httpRouteNodes)
+		totalRoutes := len(sortedHTTPRouteNodes)
+		var referredByRoutes string
+		if totalRoutes == 0 {
+			referredByRoutes = "None"
+		} else {
+			var routes []string
+			for i, httpRouteNode := range sortedHTTPRouteNodes {
+				if i < 2 {
+					namespacedName := httpRouteNode.GKNN().NamespacedName().String()
+					routes = append(routes, namespacedName)
+				} else {
+					break
+				}
+			}
+			referredByRoutes = strings.Join(routes, ", ")
+			if totalRoutes > 2 {
+				referredByRoutes += fmt.Sprintf(" + %d more", totalRoutes-2)
+			}
+		}
+		policiesMap, err := directlyattachedpolicy.Access(directResponseNode)
+		if err != nil {
+			return err
+		}
+		policiesCount := fmt.Sprintf("%d", len(policiesMap))
+		row = append(row, referredByRoutes, policiesCount)
+	}
+	p.table.Rows = append(p.table.Rows, row)
+
+	return nil
+}
+
+func (p *DescriptionPrinter) printDirectResponse(directResponseNode *topology.Node, w io.Writer) error {
+	if p.printSeparator {
+		fmt.Fprintf(w, "\n\n")
+	}
+	p.printSeparator = true
+
+	directResponse := directResponseNode.Object.DeepCopy()
+	directResponse.SetLabels(nil)
+	directResponse.SetAnnotations(nil)
+
+	pairs := []*DescriberKV{
+		{Key: "Name", Value: directResponseNode.Object.GetName()},
+		{Key: "Namespace", Value: directResponseNode.Object.GetNamespace()},
+		{Key: "Labels", Value: directResponseNode.Object.GetLabels()},
+		{Key: "Annotations", Value: directResponseNode.Object.GetAnnotations()},
+		{Key: "DirectResponse", Value: directResponse},
+	}
+
+	// ReferencedByRoutes
+	routes := &Table{
+		ColumnNames:  []string{"Kind", "Name"},
+		UseSeparator: true,
+	}
+	for _, httpRouteNode := range topologykgw.DirectResponseNode(directResponseNode).HTTPRoutes() {
+		row := []string{
+			httpRouteNode.GKNN().Kind,                      // Kind
+			httpRouteNode.GKNN().NamespacedName().String(), // Name
+		}
+		routes.Rows = append(routes.Rows, row)
+	}
+	pairs = append(pairs, &DescriberKV{Key: "ReferencedByRoutes", Value: routes})
+
+	// ReferenceGrants
+	referenceGrantsMetadata, err := refgrantvalidator.Access(directResponseNode)
+	if err != nil {
+		return err
+	}
+	if referenceGrantsMetadata != nil && len(referenceGrantsMetadata.ReferenceGrants) != 0 {
+		var names []string
+		for _, refGrantNode := range referenceGrantsMetadata.ReferenceGrants {
+			names = append(names, refGrantNode.GetName())
+		}
+		pairs = append(pairs, &DescriberKV{Key: "ReferenceGrants", Value: names})
+	}
+
+	// Analysis
+	analysisErrors, err := extensionutils.AggregateAnalysisErrors(directResponseNode)
+	if err != nil {
+		return err
+	}
+	if len(analysisErrors) != 0 {
+		pairs = append(pairs, &DescriberKV{Key: "Analysis", Value: convertErrorsToString(analysisErrors)})
+	}
+
+	// Events
+	events, err := p.EventFetcher.FetchEventsFor(directResponseNode.Object)
+	if err != nil {
+		return err
+	}
+	pairs = append(pairs, &DescriberKV{Key: "Events", Value: convertEventsSliceToTable(events, p.Clock)})
+
+	Describe(w, pairs)
+	return nil
+}

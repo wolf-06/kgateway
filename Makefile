@@ -528,6 +528,26 @@ $(CONTROLLER_OUTPUT_DIR)/kgateway-linux-$(GOARCH): $(K8S_GATEWAY_SOURCES)
 .PHONY: kgateway
 kgateway: $(CONTROLLER_OUTPUT_DIR)/kgateway-linux-$(GOARCH)
 
+#----------------------------------------------------------------------------------
+# kgwctl - CLI tool for inspecting kgateway installations
+#----------------------------------------------------------------------------------
+KGWCTL_OUTPUT_DIR := $(OUTPUT_DIR)/kgwctl
+
+.PHONY: build-kgwctl
+build-kgwctl: ## Build kgwctl CLI binary for the current platform
+	go build -tags kgwctl -ldflags='$(LDFLAGS)' -gcflags='$(GCFLAGS)' -o $(KGWCTL_OUTPUT_DIR)/kgwctl ./cmd/kgwctl/...
+
+.PHONY: build-kgwctl-cross
+build-kgwctl-cross: ## Build kgwctl CLI for all platforms
+	GOOS=darwin GOARCH=amd64 go build -tags kgwctl -ldflags='$(LDFLAGS)' -o $(KGWCTL_OUTPUT_DIR)/kgwctl-darwin-amd64 ./cmd/kgwctl/...
+	GOOS=darwin GOARCH=arm64 go build -tags kgwctl -ldflags='$(LDFLAGS)' -o $(KGWCTL_OUTPUT_DIR)/kgwctl-darwin-arm64 ./cmd/kgwctl/...
+	GOOS=linux GOARCH=amd64 go build -tags kgwctl -ldflags='$(LDFLAGS)' -o $(KGWCTL_OUTPUT_DIR)/kgwctl-linux-amd64 ./cmd/kgwctl/...
+	GOOS=linux GOARCH=arm64 go build -tags kgwctl -ldflags='$(LDFLAGS)' -o $(KGWCTL_OUTPUT_DIR)/kgwctl-linux-arm64 ./cmd/kgwctl/...
+
+.PHONY: test-kgwctl
+test-kgwctl: ## Run kgwctl unit tests
+	go test -tags kgwctl ./pkg/kgwctl/...
+
 $(CONTROLLER_OUTPUT_DIR)/Dockerfile: cmd/kgateway/Dockerfile
 	cp $< $@
 
