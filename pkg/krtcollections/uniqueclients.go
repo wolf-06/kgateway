@@ -223,6 +223,14 @@ func (x *callbacksCollection) add(sid int64, r *envoy_service_discovery_v3.Disco
 				locality = pod.Locality
 				ns = pod.Namespace
 				labels = pod.AugmentedLabels
+				// Normalize role to the gateway owner derived from pod labels so stream and cache keys align.
+				gwName := labels[wellknown.GatewayNameAnnotation]
+				if gwName == "" {
+					gwName = labels[wellknown.GatewayNameLabel]
+				}
+				if gwName != "" {
+					peer.role = xds.OwnerNamespaceNameID(wellknown.GatewayApiProxyValue, ns, gwName)
+				}
 			}
 		}
 		x.logger.Debug("adding xds client", "locality", locality, "ns", ns, "labels", labels, "role", peer.role)
@@ -341,7 +349,20 @@ func (x *callbacksCollection) fetchRequest(_ context.Context, r *envoy_service_d
 	podRef := getRef(r.GetNode())
 	k := krt.Named{Name: podRef.Name, Namespace: podRef.Namespace}.ResourceName()
 	pod = x.augmentedPods.GetKey(k)
-	ucc := ir.NewUniqlyConnectedClient(roleFromRequest(r), pod.Namespace, pod.AugmentedLabels, pod.Locality)
+
+	role := roleFromRequest(r)
+	// Keep fetch requests consistent with stream requests by using label-derived gateway ownership when present.
+	if pod != nil && pod.AugmentedLabels != nil {
+		gwName := pod.AugmentedLabels[wellknown.GatewayNameAnnotation]
+		if gwName == "" {
+			gwName = pod.AugmentedLabels[wellknown.GatewayNameLabel]
+		}
+		if gwName != "" {
+			role = xds.OwnerNamespaceNameID(wellknown.GatewayApiProxyValue, pod.Namespace, gwName)
+		}
+	}
+
+	ucc := ir.NewUniqlyConnectedClient(role, pod.Namespace, pod.AugmentedLabels, pod.Locality)
 
 	nodeMd := r.GetNode().GetMetadata()
 	if nodeMd == nil {
