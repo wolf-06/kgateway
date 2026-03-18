@@ -349,10 +349,13 @@ func (x *callbacksCollection) fetchRequest(_ context.Context, r *envoy_service_d
 	podRef := getRef(r.GetNode())
 	k := krt.Named{Name: podRef.Name, Namespace: podRef.Namespace}.ResourceName()
 	pod = x.augmentedPods.GetKey(k)
+	if pod == nil {
+		return fmt.Errorf("pod not found for node %v", r.GetNode())
+	}
 
 	role := roleFromRequest(r)
 	// Keep fetch requests consistent with stream requests by using label-derived gateway ownership when present.
-	if pod != nil && pod.AugmentedLabels != nil {
+	if pod.AugmentedLabels != nil {
 		gwName := pod.AugmentedLabels[wellknown.GatewayNameAnnotation]
 		if gwName == "" {
 			gwName = pod.AugmentedLabels[wellknown.GatewayNameLabel]
