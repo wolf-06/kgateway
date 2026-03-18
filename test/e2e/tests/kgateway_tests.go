@@ -28,6 +28,7 @@ import (
 	"github.com/kgateway-dev/kgateway/v2/test/e2e/features/leaderelection"
 	"github.com/kgateway-dev/kgateway/v2/test/e2e/features/listener_policy"
 	"github.com/kgateway-dev/kgateway/v2/test/e2e/features/loadtesting"
+	"github.com/kgateway-dev/kgateway/v2/test/e2e/features/longgatewayname"
 	"github.com/kgateway-dev/kgateway/v2/test/e2e/features/oauth"
 	"github.com/kgateway-dev/kgateway/v2/test/e2e/features/path_matching"
 	"github.com/kgateway-dev/kgateway/v2/test/e2e/features/policyselector"
@@ -67,6 +68,7 @@ func KubeGatewaySuiteRunner() e2e.SuiteRunner {
 	kubeGatewaySuiteRunner.Register("LeaderElection", leaderelection.NewTestingSuite)
 	kubeGatewaySuiteRunner.Register("HeaderModifiers", header_modifiers.NewTestingSuite)
 	kubeGatewaySuiteRunner.Register("FrontendTLS", frontendtls.NewTestingSuite)
+	kubeGatewaySuiteRunner.Register("LongGatewayName", longgatewayname.NewTestingSuite)
 
 	// Fast tests
 	kubeGatewaySuiteRunner.Register("AccessLog", accesslog.NewTestingSuite)
