@@ -29,16 +29,24 @@ import (
 
 var _ e2e.NewSuiteFunc = NewTestingSuite
 
-const longGatewayName = "very-long-gateway-name-to-verify-routing-behavior-still-works-much-more-longer"
-const longRouteName = "long-example-route"
+const (
+	longGatewayName          = "very-long-gateway-name-to-verify-routing-behavior-still-works-much-more-longer"
+	longRouteName            = "long-example-route"
+	samePrefixGatewayNameOne = "very-long-gateway-name-to-verify-routing-behavior-same-prefix-aaaaaaaaaaaaaaaaa-one"
+	samePrefixGatewayNameTwo = "very-long-gateway-name-to-verify-routing-behavior-same-prefix-aaaaaaaaaaaaaaaaa-two"
+	samePrefixRouteNameOne   = "long-example-route-a"
+	samePrefixRouteNameTwo   = "long-example-route-b"
+)
 
 var (
-	setupManifest   = filepath.Join(fsutils.MustGetThisDir(), "testdata", "gateway-with-long-name.yaml")
-	serviceManifest = filepath.Join(fsutils.MustGetThisDir(), "testdata", "service.yaml")
+	setupManifest      = filepath.Join(fsutils.MustGetThisDir(), "testdata", "gateway-with-long-name.yaml")
+	samePrefixManifest = filepath.Join(fsutils.MustGetThisDir(), "testdata", "gateway-with-same-prefix-long-names.yaml")
+	serviceManifest    = filepath.Join(fsutils.MustGetThisDir(), "testdata", "service.yaml")
 
 	setup     = base.TestCase{Manifests: []string{serviceManifest, setupManifest}}
 	testCases = map[string]*base.TestCase{
-		"TestLongGatewayNameRouting": {},
+		"TestLongGatewayNameRouting":               {},
+		"TestSamePrefixMultipleGatewayNameRouting": {Manifests: []string{samePrefixManifest}},
 	}
 )
 
@@ -133,5 +141,96 @@ func (s *testingSuite) TestLongGatewayNameRouting() {
 		},
 		curl.WithHostHeader("long.example.com"),
 		curl.WithPort(8080), // <-- Bring this back! Since KinD uses raw IPs, we need to enforce the port here.
+	)
+}
+
+func (s *testingSuite) TestSamePrefixMultipleGatewayNameRouting() {
+	s.Require().NotEqual(safeGatewayName(samePrefixGatewayNameOne), safeGatewayName(samePrefixGatewayNameTwo))
+
+	s.TestInstallation.Assertions.EventuallyPodsRunning(
+		s.Ctx,
+		"default",
+		metav1.ListOptions{LabelSelector: testdefaults.WellKnownAppLabel + "=" + safeGatewayName(samePrefixGatewayNameOne)},
+		time.Second*120,
+		time.Millisecond*500,
+	)
+	s.TestInstallation.Assertions.EventuallyPodsRunning(
+		s.Ctx,
+		"default",
+		metav1.ListOptions{LabelSelector: testdefaults.WellKnownAppLabel + "=" + safeGatewayName(samePrefixGatewayNameTwo)},
+		time.Second*120,
+		time.Millisecond*500,
+	)
+
+	s.TestInstallation.AssertionsT(s.T()).EventuallyGatewayCondition(
+		s.Ctx,
+		samePrefixGatewayNameOne,
+		"default",
+		gwv1.GatewayConditionProgrammed,
+		metav1.ConditionTrue,
+	)
+	s.TestInstallation.AssertionsT(s.T()).EventuallyGatewayCondition(
+		s.Ctx,
+		samePrefixGatewayNameTwo,
+		"default",
+		gwv1.GatewayConditionProgrammed,
+		metav1.ConditionTrue,
+	)
+
+	s.TestInstallation.AssertionsT(s.T()).EventuallyHTTPRouteCondition(
+		s.Ctx,
+		samePrefixRouteNameOne,
+		"default",
+		gwv1.RouteConditionAccepted,
+		metav1.ConditionTrue,
+	)
+	s.TestInstallation.AssertionsT(s.T()).EventuallyHTTPRouteCondition(
+		s.Ctx,
+		samePrefixRouteNameOne,
+		"default",
+		gwv1.RouteConditionResolvedRefs,
+		metav1.ConditionTrue,
+	)
+	s.TestInstallation.AssertionsT(s.T()).EventuallyHTTPRouteCondition(
+		s.Ctx,
+		samePrefixRouteNameTwo,
+		"default",
+		gwv1.RouteConditionAccepted,
+		metav1.ConditionTrue,
+	)
+	s.TestInstallation.AssertionsT(s.T()).EventuallyHTTPRouteCondition(
+		s.Ctx,
+		samePrefixRouteNameTwo,
+		"default",
+		gwv1.RouteConditionResolvedRefs,
+		metav1.ConditionTrue,
+	)
+
+	firstGateway := common.Gateway{
+		NamespacedName: types.NamespacedName{Name: samePrefixGatewayNameOne, Namespace: "default"},
+		Address:        s.TestInstallation.Assertions.EventuallyGatewayAddress(s.Ctx, samePrefixGatewayNameOne, "default"),
+	}
+	secondGateway := common.Gateway{
+		NamespacedName: types.NamespacedName{Name: samePrefixGatewayNameTwo, Namespace: "default"},
+		Address:        s.TestInstallation.Assertions.EventuallyGatewayAddress(s.Ctx, samePrefixGatewayNameTwo, "default"),
+	}
+
+	firstGateway.Send(
+		s.T(),
+		&testmatchers.HttpResponse{
+			StatusCode: http.StatusOK,
+			Body:       gomega.ContainSubstring(testdefaults.NginxResponse),
+		},
+		curl.WithHostHeader("long-a.example.com"),
+		curl.WithPort(8080),
+	)
+	secondGateway.Send(
+		s.T(),
+		&testmatchers.HttpResponse{
+			StatusCode: http.StatusOK,
+			Body:       gomega.ContainSubstring(testdefaults.NginxResponse),
+		},
+		curl.WithHostHeader("long-b.example.com"),
+		curl.WithPort(8080),
 	)
 }
