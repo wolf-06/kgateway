@@ -125,6 +125,9 @@ func (r *ReportMap) BuildGWStatus(ctx context.Context, gw gwv1.Gateway, attached
 	finalGwStatus.Addresses = gw.Status.Addresses
 	finalGwStatus.Conditions = finalConditions
 	finalGwStatus.Listeners = finalListeners
+	if gwReport.attachedListenerSets > 0 {
+		finalGwStatus.AttachedListenerSets = &gwReport.attachedListenerSets
+	}
 	return &finalGwStatus
 }
 
@@ -218,6 +221,24 @@ func (r *ReportMap) BuildListenerSetStatus(ctx context.Context, ls gwv1.Listener
 			Reason:  gwv1.GatewayReasonListenersNotValid,
 			Message: message,
 		})
+	}
+
+	// If there are no valid listeners, reject the listenerSet
+	if len(finalListeners) != 0 {
+		if len(invalidListeners) == len(finalListeners) {
+			lsReport.SetCondition(reporter.GatewayCondition{
+				Type:    gwv1.GatewayConditionAccepted,
+				Status:  metav1.ConditionFalse,
+				Reason:  gwv1.GatewayReasonListenersNotValid,
+				Message: "No valid listeners",
+			})
+			lsReport.SetCondition(reporter.GatewayCondition{
+				Type:    gwv1.GatewayConditionProgrammed,
+				Status:  metav1.ConditionFalse,
+				Reason:  gwv1.GatewayReasonListenersNotValid,
+				Message: "No valid listeners",
+			})
+		}
 	}
 
 	AddMissingListenerSetConditions(r.ListenerSet(&ls))
