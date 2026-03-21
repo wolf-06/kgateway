@@ -740,6 +740,7 @@ func (s *testingSuite) TestGatewayWithTransformation() {
 	s.TestInstallation.AssertionsT(s.T()).AssertEnvoyAdminApi(
 		s.Ctx,
 		proxyObjectMeta,
+		s.envoyAdminReadyAssertion(),
 		s.dynamicModuleAssertion(true),
 	)
 
@@ -869,8 +870,21 @@ func (s *testingSuite) dynamicModuleAssertion(shouldBeLoaded bool) func(ctx cont
 			}
 		}).
 			WithContext(ctx).
-			WithTimeout(time.Second*20).
-			WithPolling(time.Second).
+			WithTimeout(30*time.Second).
+			WithPolling(2*time.Second).
 			Should(gomega.Succeed(), "failed to get expected load of dynamic modules")
+	}
+}
+
+func (s *testingSuite) envoyAdminReadyAssertion() func(ctx context.Context, adminClient *envoyadmincli.Client) {
+	return func(ctx context.Context, adminClient *envoyadmincli.Client) {
+		s.TestInstallation.AssertionsT(s.T()).Gomega.Eventually(func(g gomega.Gomega) {
+			_, err := adminClient.GetServerInfo(ctx)
+			g.Expect(err).NotTo(gomega.HaveOccurred(), "Envoy admin API not ready")
+		}).
+			WithContext(ctx).
+			WithTimeout(60*time.Second).
+			WithPolling(2*time.Second).
+			Should(gomega.Succeed(), "Envoy admin API did not become ready in time")
 	}
 }
