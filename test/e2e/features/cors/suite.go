@@ -122,9 +122,7 @@ func (s *testingSuite) TestTrafficPolicyCorsForRoute() {
 
 			// For negative cases, we expect no CORS headers to be returned
 			// since the origin doesn't match any of the allowed patterns
-			// s.assertResponse("/path1", requestHeaders, nil, []string{
-			// 	"Access-Control-Allow-Origin", "Access-Control-Allow-Methods", "Access-Control-Allow-Headers",
-			// })
+			s.assertNegativePreflightResponse("/path1", requestHeaders)
 
 			// Verify that the route without cors is also not affected
 			s.assertResponse("/path2", requestHeaders, nil, []string{
@@ -267,9 +265,7 @@ func (s *testingSuite) TestHttpRouteCorsInRouteRules() {
 
 			// For negative cases, we expect no CORS headers to be returned
 			// since the origin doesn't match any of the allowed patterns
-			// s.assertResponse("/path1", requestHeaders, nil, []string{
-			// 	"Access-Control-Allow-Origin", "Access-Control-Allow-Methods", "Access-Control-Allow-Headers",
-			// })
+			s.assertNegativePreflightResponse("/path1", requestHeaders)
 
 			// Verify that the route without cors is also not affected
 			s.assertResponse("/path2", requestHeaders, nil, []string{
@@ -315,6 +311,25 @@ func (s *testingSuite) assertResponse(path string, requestHeaders map[string]str
 			StatusCode: http.StatusOK,
 			Headers:    expectedHeaders,
 			NotHeaders: notExpectedHeaders,
+		},
+		curl.WithMethod(http.MethodOptions),
+		curl.WithPath(path),
+		curl.WithHostHeader("example.com"),
+		curl.WithPort(80),
+		curl.WithHeaders(requestHeaders),
+	)
+}
+
+// assertNegativePreflightResponse asserts that a non-matching preflight request
+// does not grant cross-origin access. Per the Gateway API conformance test
+// (HTTPRouteCORS), non-matching preflight responses may return 200, 204, or 403
+// and must not include the Access-Control-Allow-Origin header.
+func (s *testingSuite) assertNegativePreflightResponse(path string, requestHeaders map[string]string) {
+	common.BaseGateway.Send(
+		s.T(),
+		&testmatchers.HttpResponse{
+			StatusCodes: []int{http.StatusOK, http.StatusNoContent, http.StatusForbidden},
+			NotHeaders:  []string{"Access-Control-Allow-Origin"},
 		},
 		curl.WithMethod(http.MethodOptions),
 		curl.WithPath(path),
