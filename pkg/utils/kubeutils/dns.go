@@ -21,6 +21,9 @@ func ServiceFQDN(serviceMeta metav1.ObjectMeta) string {
 
 // SafeGatewayLabelValue converts a gateway name to a value that is RFC1123 label compliant.
 // If the name is longer than 63 characters, it truncates it to 50 characters and adds a SHA256 hash suffix.
+//
+// This must stay in sync with the Helm template kgateway.gateway.safeLabelValue
+// defined in pkg/kgateway/helm/envoy/templates/_helpers.tpl.
 func SafeGatewayLabelValue(name string) string {
 	if len(name) <= maxLabelLength {
 		return name
