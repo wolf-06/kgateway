@@ -24,10 +24,10 @@ func TestSafeGatewayLabelValue(t *testing.T) {
 			want:    "this-is-a-very-long-gateway-name-that-exceeds-sixt-42d6992a3ffd",
 		},
 		{
-			name:    "long name with trailing dash handled correctly",
-			input:   "this-is-a-very-long-gateway-name-that-ends-with-a-dash-",
-			wantLen: 55,
-			want:    "this-is-a-very-long-gateway-name-that-ends-with-a-dash-",
+			name:    "long name with trailing dash at truncation boundary",
+			input:   "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqr-extra-chars-here-12345",
+			wantLen: 63,
+			want:    "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqr-extra-43c57a89f7ba",
 		},
 		{
 			name:    "exact 63 char name returns as-is",
