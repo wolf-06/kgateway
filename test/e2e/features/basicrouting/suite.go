@@ -108,10 +108,8 @@ func (s *testingSuite) TestLongHTTPRouteName() {
 
 func (s *testingSuite) TestSamePrefixLongGatewayNameRouting() {
 	const (
-		gwNameOne    = "very-long-gateway-name-for-testing-80-char-limit-exactly-this-many-chars-aaa-one"
-		gwNameTwo    = "very-long-gateway-name-for-testing-80-char-limit-exactly-this-many-chars-bbb-two"
-		routeNameOne = "long-gateway-example-route-a"
-		routeNameTwo = "long-gateway-example-route-b"
+		gwNameOne = "very-long-gateway-name-for-testing-80-char-limit-exactly-this-many-chars-aaa-one"
+		gwNameTwo = "very-long-gateway-name-for-testing-80-char-limit-exactly-this-many-chars-bbb-two"
 	)
 
 	// Verify the two long names with the same prefix produce different safe names

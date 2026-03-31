@@ -2,8 +2,6 @@ kind: Gateway
 apiVersion: gateway.networking.k8s.io/v1
 metadata:
   name: very-long-gateway-name-for-testing-80-char-limit-exactly-this-many-chars-aaa-one
-  annotations:
-    e2e.kgateway.dev/self-managed: "true"
 spec:
   gatewayClassName: kgateway
   listeners:
@@ -32,8 +30,6 @@ kind: Gateway
 apiVersion: gateway.networking.k8s.io/v1
 metadata:
   name: very-long-gateway-name-for-testing-80-char-limit-exactly-this-many-chars-bbb-two
-  annotations:
-    e2e.kgateway.dev/self-managed: "true"
 spec:
   gatewayClassName: kgateway
   listeners:
