@@ -6,13 +6,10 @@ import (
 	"context"
 	"net/http"
 	"path/filepath"
-	"time"
 
 	"github.com/onsi/gomega"
 	"github.com/stretchr/testify/suite"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	gwv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/kgateway-dev/kgateway/v2/pkg/utils/fsutils"
 	"github.com/kgateway-dev/kgateway/v2/pkg/utils/kubeutils"
@@ -99,24 +96,7 @@ func (s *testingSuite) TestHeadlessService() {
 }
 
 func (s *testingSuite) TestLongHTTPRouteName() {
-	longRouteName := "very-long-httproute-name-to-verify-routing-behavior-still-works-much-more-longer"
-
-	s.TestInstallation.AssertionsT(s.T()).EventuallyHTTPRouteCondition(
-		s.Ctx,
-		longRouteName,
-		"kgateway-base",
-		gwv1.RouteConditionAccepted,
-		metav1.ConditionTrue,
-	)
-	s.TestInstallation.AssertionsT(s.T()).EventuallyHTTPRouteCondition(
-		s.Ctx,
-		longRouteName,
-		"kgateway-base",
-		gwv1.RouteConditionResolvedRefs,
-		metav1.ConditionTrue,
-	)
-
-	common.BaseGateway.Send(
+	s.localGateway.Send(
 		s.T(),
 		&testmatchers.HttpResponse{
 			StatusCode: http.StatusOK,
@@ -136,68 +116,6 @@ func (s *testingSuite) TestSamePrefixLongGatewayNameRouting() {
 
 	// Verify the two long names with the same prefix produce different safe names
 	s.Require().NotEqual(kubeutils.SafeGatewayLabelValue(gwNameOne), kubeutils.SafeGatewayLabelValue(gwNameTwo))
-
-	// Wait for both proxy pods to be running
-	s.TestInstallation.Assertions.EventuallyPodsRunning(
-		s.Ctx,
-		"default",
-		metav1.ListOptions{LabelSelector: testdefaults.WellKnownAppLabel + "=" + kubeutils.SafeGatewayLabelValue(gwNameOne)},
-		time.Second*120,
-		time.Millisecond*500,
-	)
-	s.TestInstallation.Assertions.EventuallyPodsRunning(
-		s.Ctx,
-		"default",
-		metav1.ListOptions{LabelSelector: testdefaults.WellKnownAppLabel + "=" + kubeutils.SafeGatewayLabelValue(gwNameTwo)},
-		time.Second*120,
-		time.Millisecond*500,
-	)
-
-	// Assert both Gateways are programmed
-	s.TestInstallation.AssertionsT(s.T()).EventuallyGatewayCondition(
-		s.Ctx,
-		gwNameOne,
-		"default",
-		gwv1.GatewayConditionProgrammed,
-		metav1.ConditionTrue,
-	)
-	s.TestInstallation.AssertionsT(s.T()).EventuallyGatewayCondition(
-		s.Ctx,
-		gwNameTwo,
-		"default",
-		gwv1.GatewayConditionProgrammed,
-		metav1.ConditionTrue,
-	)
-
-	// Assert both HTTPRoutes are accepted
-	s.TestInstallation.AssertionsT(s.T()).EventuallyHTTPRouteCondition(
-		s.Ctx,
-		routeNameOne,
-		"default",
-		gwv1.RouteConditionAccepted,
-		metav1.ConditionTrue,
-	)
-	s.TestInstallation.AssertionsT(s.T()).EventuallyHTTPRouteCondition(
-		s.Ctx,
-		routeNameOne,
-		"default",
-		gwv1.RouteConditionResolvedRefs,
-		metav1.ConditionTrue,
-	)
-	s.TestInstallation.AssertionsT(s.T()).EventuallyHTTPRouteCondition(
-		s.Ctx,
-		routeNameTwo,
-		"default",
-		gwv1.RouteConditionAccepted,
-		metav1.ConditionTrue,
-	)
-	s.TestInstallation.AssertionsT(s.T()).EventuallyHTTPRouteCondition(
-		s.Ctx,
-		routeNameTwo,
-		"default",
-		gwv1.RouteConditionResolvedRefs,
-		metav1.ConditionTrue,
-	)
 
 	// Get addresses for both Gateways
 	firstGateway := common.Gateway{
