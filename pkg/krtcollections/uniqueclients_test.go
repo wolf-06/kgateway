@@ -1,4 +1,4 @@
-package krtcollections
+package krtcollections_test
 
 import (
 	"context"
@@ -20,6 +20,7 @@ import (
 	"github.com/kgateway-dev/kgateway/v2/pkg/kgateway/utils"
 	"github.com/kgateway-dev/kgateway/v2/pkg/kgateway/wellknown"
 	"github.com/kgateway-dev/kgateway/v2/pkg/kgateway/xds"
+	. "github.com/kgateway-dev/kgateway/v2/pkg/krtcollections"
 	"github.com/kgateway-dev/kgateway/v2/pkg/pluginsdk/ir"
 	"github.com/kgateway-dev/kgateway/v2/pkg/pluginsdk/krtutil"
 )
@@ -300,7 +301,7 @@ func TestNormalizeGatewayRole(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			g := NewWithT(t)
-			result := normalizeGatewayRole(tc.originalRole, tc.namespace, tc.labels)
+			result := NormalizeGatewayRole(tc.originalRole, tc.namespace, tc.labels)
 			g.Expect(result).To(Equal(tc.expectedRole))
 		})
 	}

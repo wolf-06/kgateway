@@ -200,7 +200,10 @@ func roleFromRequest(r *envoy_service_discovery_v3.DiscoveryRequest) string {
 	return r.GetNode().GetMetadata().GetFields()[xds.RoleKey].GetStringValue()
 }
 
-func normalizeGatewayRole(originalRole, namespace string, labels map[string]string) string {
+// NormalizeGatewayRole returns a normalized Gateway API proxy identity
+// derived from the namespace and gateway name in labels.
+// If no gateway name is found, it returns originalRole unchanged.
+func NormalizeGatewayRole(originalRole, namespace string, labels map[string]string) string {
 	if labels == nil {
 		return originalRole
 	}
@@ -239,7 +242,7 @@ func (x *callbacksCollection) add(sid int64, r *envoy_service_discovery_v3.Disco
 				locality = pod.Locality
 				ns = pod.Namespace
 				labels = pod.AugmentedLabels
-				peer.role = normalizeGatewayRole(peer.role, ns, labels)
+				peer.role = NormalizeGatewayRole(peer.role, ns, labels)
 			}
 		}
 		x.logger.Debug("adding xds client", "locality", locality, "ns", ns, "labels", labels, "role", peer.role)
@@ -363,7 +366,7 @@ func (x *callbacksCollection) fetchRequest(_ context.Context, r *envoy_service_d
 	}
 
 	role := roleFromRequest(r)
-	role = normalizeGatewayRole(role, pod.Namespace, pod.AugmentedLabels)
+	role = NormalizeGatewayRole(role, pod.Namespace, pod.AugmentedLabels)
 
 	ucc := ir.NewUniqlyConnectedClient(role, pod.Namespace, pod.AugmentedLabels, pod.Locality)
 
